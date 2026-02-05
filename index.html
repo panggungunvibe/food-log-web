@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Food Log</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+    body { margin:0; background:#f6f7f9; color:#111; }
+    header { position: sticky; top:0; background:white; padding:14px 16px; border-bottom:1px solid #e6e8ee; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    header h1 { margin:0; font-size:16px; font-weight:700; }
+    header .btn { border:1px solid #d9dde7; background:#fff; border-radius:12px; padding:8px 10px; font-size:12px; }
+    main { padding:12px; max-width: 820px; margin:0 auto; }
+    .card { background:white; border:1px solid #e6e8ee; border-radius:18px; padding:12px; box-shadow: 0 2px 10px rgba(0,0,0,.03); }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .muted { color:#667085; font-size:12px; }
+    .grid { display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; margin-top:10px; }
+    .dow { text-align:center; font-size:12px; color:#667085; padding:6px 0; }
+    .day { border:1px solid #e6e8ee; background:#fff; border-radius:14px; padding:10px 8px; min-height:54px; cursor:pointer; display:flex; flex-direction:column; justify-content:space-between; }
+    .day .n { font-size:12px; font-weight:700; }
+    .day .c { font-size:12px; color:#667085; }
+    .day.today { outline: 2px solid #111; outline-offset: 0px; }
+    .day.other { opacity:.45; }
+    .fab { position: fixed; right: 18px; bottom: 22px; width: 56px; height: 56px; border-radius: 18px; border: none; background: #111; color: white; font-size: 28px; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+    dialog { border:none; border-radius:18px; width:min(92vw, 520px); }
+    dialog::backdrop { background: rgba(0,0,0,.35); }
+    .dlg-h { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
+    .dlg-h h2 { margin:0; font-size:15px; }
+    .x { border:1px solid #d9dde7; background:#fff; border-radius:12px; padding:6px 10px; }
+    .field { display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+    label { font-size:12px; color:#344054; }
+    input[type="text"], textarea { width:100%; box-sizing:border-box; border:1px solid #d9dde7; border-radius:14px; padding:10px 12px; font-size:14px; background:#fff; }
+    textarea { min-height: 88px; resize: vertical; }
+    .actions { display:flex; gap:10px; justify-content:flex-end; margin-top: 10px; }
+    .primary { background:#111; color:#fff; border:none; border-radius:14px; padding:10px 12px; font-size:14px; }
+    .ghost { background:#fff; border:1px solid #d9dde7; border-radius:14px; padding:10px 12px; font-size:14px; }
+    .list { display:flex; flex-direction:column; gap:10px; margin-top: 10px; }
+    .item { border:1px solid #e6e8ee; border-radius:16px; padding:10px; background:#fff; display:flex; gap:10px; }
+    .thumb { width:68px; height:68px; border-radius:14px; background:#f1f3f6; flex: 0 0 auto; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+    .thumb img { width:100%; height:100%; object-fit:cover; }
+    .meta { flex: 1 1 auto; min-width: 0; }
+    .meta .t { font-weight:700; font-size:14px; margin-bottom:4px; }
+    .meta .s { font-size:12px; color:#667085; margin-bottom:6px; }
+    .meta .note { font-size:13px; white-space:pre-wrap; word-break:break-word; }
+    .mini { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .pill { font-size:12px; padding:6px 8px; border-radius:999px; border:1px solid #d9dde7; background:#fff; }
+    .warn { color:#b42318; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>饮食随手记</h1>
+  <div class="row">
+    <button class="btn" id="btnStats">统计</button>
+    <button class="btn" id="btnSettings">设置</button>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <button class="btn" id="prevMonth">←</button>
+      <div>
+        <div id="monthTitle" style="text-align:center; font-weight:800;"></div>
+        <div class="muted" id="syncStatus" style="text-align:center; margin-top:2px;">未同步</div>
+      </div>
+      <button class="btn" id="nextMonth">→</button>
+    </div>
+
+    <div class="grid" style="margin-top:10px;">
+      <div class="dow">一</div><div class="dow">二</div><div class="dow">三</div><div class="dow">四</div><div class="dow">五</div><div class="dow">六</div><div class="dow">日</div>
+    </div>
+    <div class="grid" id="calGrid"></div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <div style="font-weight:800;" id="dayTitle">选择一天</div>
+        <div class="muted" id="daySub">点日历查看当天记录</div>
+      </div>
+      <div class="mini">
+        <button class="btn" id="btnRefresh">刷新</button>
+      </div>
+    </div>
+    <div class="list" id="dayList"></div>
+  </div>
+</main>
+
+<button class="fab" id="fabAdd" title="新增">+</button>
+
+<!-- Settings -->
+<dialog id="dlgSettings">
+  <div class="dlg-h">
+    <h2>设置（写入 GitHub）</h2>
+    <button class="x" data-close>关闭</button>
+  </div>
+  <div class="muted">Token 只保存在你手机本地浏览器里（localStorage），不会上传到网页仓库。</div>
+
+  <div class="field">
+    <label>GitHub 用户名（owner）</label>
+    <input id="ghOwner" type="text" placeholder="例如: yourname" />
+  </div>
+  <div class="field">
+    <label>数据仓库名（repo）</label>
+    <input id="ghRepo" type="text" placeholder="food-log-data" />
+  </div>
+  <div class="field">
+    <label>GitHub Token（Fine-grained token）</label>
+    <input id="ghToken" type="text" placeholder="ghp_..." />
+    <div class="muted warn">不要把 Token 发给任何人，也不要提交到 GitHub 代码仓库。</div>
+  </div>
+
+  <div class="actions">
+    <button class="ghost" id="btnTest">测试写入权限</button>
+    <button class="primary" id="btnSaveSettings">保存</button>
+  </div>
+</dialog>
+
+<!-- Add/Edit -->
+<dialog id="dlgEdit">
+  <div class="dlg-h">
+    <h2 id="editTitle">新增记录</h2>
+    <button class="x" data-close>关闭</button>
+  </div>
+
+  <div class="field">
+    <label>照片（可选）</label>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" />
+    <div class="muted">你可以拍照或从相册选图。照片只保存在本机，不会上 GitHub。</div>
+  </div>
+
+  <div class="field">
+    <label>备注（一句话）</label>
+    <textarea id="noteInput" placeholder="例如：牛肉面半碗 + 可乐"></textarea>
+  </div>
+
+  <div class="actions">
+    <button class="ghost" id="btnDelete" style="display:none;">删除</button>
+    <button class="primary" id="btnSave">保存并同步</button>
+  </div>
+</dialog>
+
+<!-- Stats -->
+<dialog id="dlgStats">
+  <div class="dlg-h">
+    <h2>统计</h2>
+    <button class="x" data-close>关闭</button>
+  </div>
+  <div class="muted">仅统计“每天记录条数”。</div>
+  <div class="card" style="margin-top:10px;">
+    <div class="row" style="justify-content:space-between;">
+      <div style="font-weight:800;">近 7 天</div>
+      <div class="muted" id="s7"></div>
+    </div>
+    <div id="bars7" style="display:flex; gap:6px; align-items:flex-end; height:90px; margin-top:10px;"></div>
+  </div>
+  <div class="card" style="margin-top:10px;">
+    <div class="row" style="justify-content:space-between;">
+      <div style="font-weight:800;">近 30 天</div>
+      <div class="muted" id="s30"></div>
+    </div>
+    <div id="bars30" style="display:flex; gap:4px; align-items:flex-end; height:110px; margin-top:10px;"></div>
+  </div>
+</dialog>
+
+<script>
+/** =========================
+ *  Minimal Food Log (iPhone-friendly)
+ *  - Calendar view w/ daily counts
+ *  - Add/edit/delete records
+ *  - Photos stored locally (IndexedDB)
+ *  - Text logs synced to GitHub private repo as logs.json
+ * ========================= */
+
+const LS_KEY = "foodlog.settings.v1";
+const DB_NAME = "foodlog-db";
+const DB_STORE = "photos";
+
+let state = {
+  settings: loadSettings(),
+  logs: [],              // [{id, datetime, note, has_photo, photo_id?}]
+  selectedDay: null,     // "YYYY-MM-DD"
+  viewMonth: new Date(), // first day of month used for calendar rendering
+  editingId: null,
+};
+
+function $(id){ return document.getElementById(id); }
+function fmt2(n){ return String(n).padStart(2,"0"); }
+function ymd(d){
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${fmt2(dt.getMonth()+1)}-${fmt2(dt.getDate())}`;
+}
+function hm(d){
+  const dt = new Date(d);
+  return `${fmt2(dt.getHours())}:${fmt2(dt.getMinutes())}`;
+}
+function monthTitle(d){
+  const dt = new Date(d.getFullYear(), d.getMonth(), 1);
+  return `${dt.getFullYear()} 年 ${dt.getMonth()+1} 月`;
+}
+
+function loadSettings(){
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }
+  catch { return {}; }
+}
+function saveSettings(s){
+  localStorage.setItem(LS_KEY, JSON.stringify(s));
+}
+
+function setSyncStatus(text, isWarn=false){
+  const el = $("syncStatus");
+  el.textContent = text;
+  el.style.color = isWarn ? "#b42318" : "#667085";
+}
+
+async function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(DB_STORE)){
+        db.createObjectStore(DB_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function dbPutPhoto(blob){
+  const db = await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(DB_STORE, "readwrite");
+    const store = tx.objectStore(DB_STORE);
+    const id = crypto.randomUUID();
+    store.put({id, blob});
+    tx.oncomplete = ()=>resolve(id);
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function dbGetPhoto(id){
+  const db = await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(DB_STORE, "readonly");
+    const store = tx.objectStore(DB_STORE);
+    const req = store.get(id);
+    req.onsuccess = ()=>resolve(req.result ? req.result.blob : null);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function dbDelPhoto(id){
+  const db = await openDB();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+
+/** ---------- GitHub Sync ---------- */
+function ghHeaders(){
+  const { token } = state.settings;
+  return {
+    "Accept": "application/vnd.github+json",
+    "Authorization": `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+function requireSettings(){
+  const s = state.settings;
+  return s && s.owner && s.repo && s.token;
+}
+async function ghGetFile(path){
+  const { owner, repo } = state.settings;
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+  const res = await fetch(url, { headers: ghHeaders() });
+  if(res.status === 404) return null;
+  if(!res.ok) throw new Error(`GitHub GET failed: ${res.status}`);
+  return await res.json(); // {content, sha, ...}
+}
+async function ghPutFile(path, contentText, sha=null, message="update logs"){
+  const { owner, repo } = state.settings;
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+  const body = {
+    message,
+    content: btoa(unescape(encodeURIComponent(contentText))), // base64 utf8
+  };
+  if(sha) body.sha = sha;
+  const res = await fetch(url, { method:"PUT", headers: {...ghHeaders(), "Content-Type":"application/json"}, body: JSON.stringify(body) });
+  if(!res.ok) {
+    const t = await res.text().catch(()=> "");
+    throw new Error(`GitHub PUT failed: ${res.status} ${t}`);
+  }
+  return await res.json();
+}
+
+async function loadLogsFromGitHub(){
+  if(!requireSettings()) return [];
+  const file = await ghGetFile("logs.json");
+  if(!file) return [];
+  const jsonText = decodeURIComponent(escape(atob(file.content.replace(/\n/g,""))));
+  const data = JSON.parse(jsonText || "[]");
+  return Array.isArray(data) ? data : [];
+}
+
+async function syncLogsToGitHub(){
+  if(!requireSettings()) {
+    setSyncStatus("未配置 GitHub（点右上角 设置）", true);
+    return false;
+  }
+  setSyncStatus("同步中…");
+  // read current logs.json sha to avoid overwrite conflicts
+  const existing = await ghGetFile("logs.json");
+  const sha = existing ? existing.sha : null;
+  const contentText = JSON.stringify(state.logs, null, 2);
+  await ghPutFile("logs.json", contentText, sha, "food-log: update logs");
+  setSyncStatus("已同步");
+  return true;
+}
+
+async function testWrite(){
+  // write a tiny test file then delete not implemented; we just write to _test.json
+  const existing = await ghGetFile("_test.json");
+  const sha = existing ? existing.sha : null;
+  await ghPutFile("_test.json", JSON.stringify({ok:true, at: new Date().toISOString()}), sha, "food-log: test token");
+}
+
+/** ---------- Rendering ---------- */
+function countByDay(logs){
+  const m = new Map();
+  for(const it of logs){
+    const k = ymd(it.datetime);
+    m.set(k, (m.get(k)||0)+1);
+  }
+  return m;
+}
+
+function renderCalendar(){
+  const m = state.viewMonth;
+  $("monthTitle").textContent = monthTitle(m);
+
+  const first = new Date(m.getFullYear(), m.getMonth(), 1);
+  // Monday=1..Sunday=7
+  const weekday = (first.getDay()===0 ? 7 : first.getDay());
+  const start = new Date(first);
+  start.setDate(first.getDate() - (weekday-1));
+
+  const counts = countByDay(state.logs);
+  const grid = $("calGrid");
+  grid.innerHTML = "";
+
+  const todayKey = ymd(new Date());
+  for(let i=0;i<42;i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    const key = ymd(d);
+    const inMonth = d.getMonth() === m.getMonth();
+    const btn = document.createElement("div");
+    btn.className = "day" + (inMonth ? "" : " other") + (key===todayKey ? " today" : "");
+    btn.innerHTML = `<div class="n">${d.getDate()}</div><div class="c">${counts.get(key)||0} 条</div>`;
+    btn.addEventListener("click", ()=>selectDay(key));
+    grid.appendChild(btn);
+  }
+}
+
+function renderDayList(){
+  const key = state.selectedDay;
+  const list = $("dayList");
+  list.innerHTML = "";
+
+  if(!key){
+    $("dayTitle").textContent = "选择一天";
+    $("daySub").textContent = "点日历查看当天记录";
+    return;
+  }
+  $("dayTitle").textContent = key;
+  const items = state.logs
+    .filter(x => ymd(x.datetime) === key)
+    .sort((a,b)=> new Date(b.datetime) - new Date(a.datetime));
+
+  $("daySub").textContent = `${items.length} 条记录`;
+
+  if(items.length === 0){
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.style.padding = "10px 2px";
+    empty.textContent = "当天还没有记录，点右下角 + 新增。";
+    list.appendChild(empty);
+    return;
+  }
+
+  for(const it of items){
+    const el = document.createElement("div");
+    el.className = "item";
+
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    if(it.photo_id){
+      const img = document.createElement("img");
+      img.alt = "photo";
+      thumb.appendChild(img);
+      // async load blob
+      dbGetPhoto(it.photo_id).then(blob=>{
+        if(!blob) return;
+        const url = URL.createObjectURL(blob);
+        img.src = url;
+        img.onload = ()=>URL.revokeObjectURL(url);
+      }).catch(()=>{});
+    }else{
+      thumb.innerHTML = `<span class="muted">无图</span>`;
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.innerHTML = `
+      <div class="t">${hm(it.datetime)}</div>
+      <div class="s">${new Date(it.datetime).toLocaleString()}</div>
+      <div class="note">${escapeHtml(it.note || "")}</div>
+      <div class="mini" style="margin-top:8px;">
+        <button class="pill" data-edit>编辑</button>
+        <button class="pill" data-del>删除</button>
+      </div>
+    `;
+
+    meta.querySelector("[data-edit]").addEventListener("click", ()=>openEdit(it.id));
+    meta.querySelector("[data-del]").addEventListener("click", ()=>deleteLog(it.id));
+
+    el.appendChild(thumb);
+    el.appendChild(meta);
+    list.appendChild(el);
+  }
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function selectDay(key){
+  state.selectedDay = key;
+  renderDayList();
+}
+
+/** ---------- Add/Edit/Delete ---------- */
+function openEdit(id=null){
+  state.editingId = id;
+  $("photoInput").value = "";
+  $("noteInput").value = "";
+  $("btnDelete").style.display = "none";
+  $("editTitle").textContent = id ? "编辑记录" : "新增记录";
+
+  if(id){
+    const it = state.logs.find(x=>x.id===id);
+    if(it){
+      $("noteInput").value = it.note || "";
+      $("btnDelete").style.display = "inline-block";
+    }
+  }
+  $("dlgEdit").showModal();
+}
+
+async function saveLog(){
+  const note = $("noteInput").value.trim();
+  const file = $("photoInput").files && $("photoInput").files[0] ? $("photoInput").files[0] : null;
+
+  let photo_id = null;
+  if(file){
+    photo_id = await dbPutPhoto(file);
+  }
+
+  const now = new Date().toISOString();
+  if(state.editingId){
+    const idx = state.logs.findIndex(x=>x.id===state.editingId);
+    if(idx >= 0){
+      // if user chose new photo, attach it; if not, keep old
+      const old = state.logs[idx];
+      // if replacing photo, delete old one (optional)
+      if(photo_id && old.photo_id && old.photo_id !== photo_id){
+        dbDelPhoto(old.photo_id).catch(()=>{});
+      }
+      state.logs[idx] = {
+        ...old,
+        note,
+        updated_at: now,
+        ...(photo_id ? { photo_id, has_photo:true } : {})
+      };
+    }
+  }else{
+    const it = {
+      id: crypto.randomUUID(),
+      datetime: now,
+      note,
+      has_photo: !!photo_id,
+      ...(photo_id ? { photo_id } : {}),
+      created_at: now,
+      updated_at: now,
+    };
+    state.logs.push(it);
+    // auto select today
+    const k = ymd(now);
+    state.selectedDay = k;
+  }
+
+  $("dlgEdit").close();
+  renderCalendar();
+  renderDayList();
+
+  // auto sync
+  try{
+    await syncLogsToGitHub();
+  }catch(e){
+    setSyncStatus("同步失败（点刷新重试）", true);
+    console.error(e);
+    alert("同步到 GitHub 失败：\n" + String(e.message || e));
+  }
+}
+
+async function deleteLog(id){
+  const it = state.logs.find(x=>x.id===id);
+  if(!it) return;
+  if(!confirm("确定删除这条记录吗？")) return;
+
+  // delete local photo
+  if(it.photo_id){
+    dbDelPhoto(it.photo_id).catch(()=>{});
+  }
+
+  state.logs = state.logs.filter(x=>x.id!==id);
+  renderCalendar();
+  renderDayList();
+
+  try{
+    await syncLogsToGitHub();
+  }catch(e){
+    setSyncStatus("同步失败（点刷新重试）", true);
+    console.error(e);
+    alert("同步到 GitHub 失败：\n" + String(e.message || e));
+  }
+}
+
+/** ---------- Stats ---------- */
+function buildSeries(days){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const counts = countByDay(state.logs);
+  const arr = [];
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(today);
+    d.setDate(today.getDate()-i);
+    const k = ymd(d);
+    arr.push({k, v: counts.get(k)||0});
+  }
+  return arr;
+}
+function renderBars(containerId, series){
+  const el = $(containerId);
+  el.innerHTML = "";
+  const max = Math.max(1, ...series.map(x=>x.v));
+  for(const p of series){
+    const bar = document.createElement("div");
+    bar.title = `${p.k}: ${p.v} 条`;
+    bar.style.flex = "1 1 0";
+    bar.style.minWidth = "2px";
+    bar.style.height = `${Math.round((p.v/max)*100)}%`;
+    bar.style.background = "#111";
+    bar.style.borderRadius = "8px";
+    el.appendChild(bar);
+  }
+}
+function openStats(){
+  const s7 = buildSeries(7);
+  const s30 = buildSeries(30);
+  $("s7").textContent = `总计 ${s7.reduce((a,b)=>a+b.v,0)} 条`;
+  $("s30").textContent = `总计 ${s30.reduce((a,b)=>a+b.v,0)} 条`;
+  renderBars("bars7", s7);
+  renderBars("bars30", s30);
+  $("dlgStats").showModal();
+}
+
+/** ---------- Init & Events ---------- */
+function wireDialogs(){
+  document.querySelectorAll("[data-close]").forEach(btn=>{
+    btn.addEventListener("click", ()=> btn.closest("dialog").close());
+  });
+}
+
+$("btnSettings").addEventListener("click", ()=>{
+  $("ghOwner").value = state.settings.owner || "";
+  $("ghRepo").value = state.settings.repo || "food-log-data";
+  $("ghToken").value = state.settings.token || "";
+  $("dlgSettings").showModal();
+});
+
+$("btnSaveSettings").addEventListener("click", async ()=>{
+  const owner = $("ghOwner").value.trim();
+  const repo = $("ghRepo").value.trim();
+  const token = $("ghToken").value.trim();
+  state.settings = { owner, repo, token };
+  saveSettings(state.settings);
+  $("dlgSettings").close();
+
+  try{
+    setSyncStatus("拉取数据中…");
+    state.logs = await loadLogsFromGitHub();
+    setSyncStatus("已连接（数据已加载）");
+    renderCalendar();
+    // keep selection
+    if(!state.selectedDay) state.selectedDay = ymd(new Date());
+    renderDayList();
+  }catch(e){
+    console.error(e);
+    setSyncStatus("连接失败（检查 Token/仓库）", true);
+    alert("连接 GitHub 失败：\n" + String(e.message || e));
+  }
+});
+
+$("btnTest").addEventListener("click", async ()=>{
+  try{
+    const owner = $("ghOwner").value.trim();
+    const repo = $("ghRepo").value.trim();
+    const token = $("ghToken").value.trim();
+    if(!owner || !repo || !token){ alert("请先填 owner / repo / token"); return; }
+    const tmp = state.settings;
+    state.settings = {owner, repo, token};
+    await testWrite();
+    state.settings = tmp;
+    alert("测试成功：可以写入数据仓库");
+  }catch(e){
+    console.error(e);
+    alert("测试失败：\n" + String(e.message || e));
+  }
+});
+
+$("fabAdd").addEventListener("click", ()=>openEdit(null));
+$("btnSave").addEventListener("click", ()=>saveLog());
+$("btnDelete").addEventListener("click", ()=>{
+  if(state.editingId) deleteLog(state.editingId).then(()=> $("dlgEdit").close());
+});
+$("btnRefresh").addEventListener("click", async ()=>{
+  try{
+    setSyncStatus("刷新中…");
+    state.logs = await loadLogsFromGitHub();
+    setSyncStatus("已刷新");
+    renderCalendar();
+    renderDayList();
+  }catch(e){
+    console.error(e);
+    setSyncStatus("刷新失败", true);
+    alert("刷新失败：\n" + String(e.message || e));
+  }
+});
+$("btnStats").addEventListener("click", ()=>openStats());
+
+$("prevMonth").addEventListener("click", ()=>{
+  const d = state.viewMonth;
+  state.viewMonth = new Date(d.getFullYear(), d.getMonth()-1, 1);
+  renderCalendar();
+});
+$("nextMonth").addEventListener("click", ()=>{
+  const d = state.viewMonth;
+  state.viewMonth = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  renderCalendar();
+});
+
+async function init(){
+  wireDialogs();
+
+  state.viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  state.selectedDay = ymd(new Date());
+
+  if(requireSettings()){
+    try{
+      setSyncStatus("拉取数据中…");
+      state.logs = await loadLogsFromGitHub();
+      setSyncStatus("已连接");
+    }catch(e){
+      console.error(e);
+      setSyncStatus("连接失败（点设置）", true);
+    }
+  }else{
+    setSyncStatus("未配置 GitHub（点右上角 设置）", true);
+  }
+
+  renderCalendar();
+  renderDayList();
+}
+init();
+</script>
+</body>
+</html>
